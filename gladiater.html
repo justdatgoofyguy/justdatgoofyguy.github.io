@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gladiater - 2D Fighting Game</title>
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --bg-2: #121a2b;
+      --accent: #66e3ff;
+      --accent-2: #ff6a9e;
+      --surface: #0f1422;
+      --line: #1f2a44;
+      --good: #57e389;
+      --warn: #ffcc66;
+      --bad: #ff6a6a;
+      --text: #d9e1f2;
+      --subtle: #9aa8c7;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1200px 800px at 30% 20%, var(--bg-2), var(--bg));
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow: hidden;
+    }
+
+    .container {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    .frame {
+      width: min(100vw - 32px, 1080px);
+      aspect-ratio: 16 / 9;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.0));
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .help {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      background: rgba(15, 20, 34, 0.7);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--subtle);
+      backdrop-filter: blur(6px);
+      user-select: none;
+    }
+
+    .help strong { color: var(--text); }
+
+    .topbar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .timer {
+      min-width: 86px;
+      justify-self: center;
+      text-align: center;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(18, 26, 43, 0.75);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .label { font-size: 12px; color: var(--subtle); margin-bottom: 6px; }
+
+    .bar {
+      height: 16px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar .fill {
+      height: 100%;
+      width: 100%;
+      transform-origin: left center;
+      background: linear-gradient(90deg, var(--good), #3fbf74);
+      transition: transform 120ms linear;
+    }
+
+    .bar.right .fill { transform-origin: right center; background: linear-gradient(90deg, #bf3f6b, var(--bad)); }
+
+    .names {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--subtle);
+    }
+
+    .centerMessage {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-size: clamp(20px, 6vw, 44px);
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="frame">
+      <canvas id="game"></canvas>
+
+      <div class="topbar">
+        <div>
+          <div class="label">Player 1</div>
+          <div class="bar left"><div id="p1Fill" class="fill"></div></div>
+        </div>
+        <div class="timer" id="timer">60.0</div>
+        <div>
+          <div id="p2Label" class="label" style="text-align:right">Player 2 (Bot)</div>
+          <div class="bar right"><div id="p2Fill" class="fill"></div></div>
+        </div>
+      </div>
+
+      <div class="help">
+        <div class="names"><div><strong>P1</strong> WASD + F (attack) + S (block)</div><div style="text-align:right"><strong>P2</strong> J/L + I (jump) + H (attack) + K (block)</div></div>
+        <div style="margin-top:6px">After round: <strong>1</strong> Armor, <strong>2</strong> Weapon, <strong>3</strong> Health. Press <strong>Enter</strong> to restart. Press <strong>B</strong> to toggle Bot.</div>
+      </div>
+
+      <div class="centerMessage" id="centerMessage"></div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+
+      const p1Fill = document.getElementById('p1Fill');
+      const p2Fill = document.getElementById('p2Fill');
+      const p2Label = document.getElementById('p2Label');
+      const timerEl = document.getElementById('timer');
+      const centerMessage = document.getElementById('centerMessage');
+
+      const BASE_WIDTH = 960;
+      const BASE_HEIGHT = 540;
+
+      let deviceScale = 1;
+
+      function setupCanvas() {
+        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        deviceScale = dpr;
+        canvas.width = Math.floor(BASE_WIDTH * dpr);
+        canvas.height = Math.floor(BASE_HEIGHT * dpr);
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+      }
+
+      window.addEventListener('resize', setupCanvas);
+      setupCanvas();
+
+      const keysToPrevent = new Set([
+        'KeyA','KeyD','KeyW','KeyS','KeyF',
+        'KeyJ','KeyL','KeyI','KeyK','KeyH',
+        'Enter','Digit1','Digit2','Digit3'
+      ]);
+
+      window.addEventListener('keydown', (e) => {
+        if (keysToPrevent.has(e.code)) e.preventDefault();
+      }, { passive: false });
+
+      class InputManager {
+        constructor() {
+          this.pressed = new Set();
+          this.justPressed = new Set();
+          this.justReleased = new Set();
+          window.addEventListener('keydown', (e) => {
+            if (!this.pressed.has(e.code)) {
+              this.justPressed.add(e.code);
+            }
+            this.pressed.add(e.code);
+          });
+          window.addEventListener('keyup', (e) => {
+            this.pressed.delete(e.code);
+            this.justReleased.add(e.code);
+          });
+        }
+        isDown(code) { return this.pressed.has(code); }
+        pressedOnce(code) { return this.justPressed.has(code); }
+        releasedOnce(code) { return this.justReleased.has(code); }
+        endFrame() { this.justPressed.clear(); this.justReleased.clear(); }
+      }
+
+      const GRAVITY = 2000; // px/s^2
+      const GROUND_Y = BASE_HEIGHT - 60; // ground line
+      const WORLD_LEFT = 40;
+      const WORLD_RIGHT = BASE_WIDTH - 40;
+
+      const WEAPONS = {
+        axe:       { name: 'Axe', damage: 16, reach: 55, knockback: 460 },
+        longAxe:   { name: 'Long Axe', damage: 20, reach: 68, knockback: 520 },
+        sword:     { name: 'Sword', damage: 12, reach: 60, knockback: 420 },
+        longSword: { name: 'Long Sword', damage: 14, reach: 72, knockback: 460 },
+        club:      { name: 'Club', damage: 10, reach: 52, knockback: 540 }
+      };
+
+      class Fighter {
+        constructor(options) {
+          this.name = options.name;
+          this.color = options.color;
+          this.outline = options.outline;
+          this.width = 40;
+          this.height = 90;
+          this.positionX = options.startX;
+          this.positionY = GROUND_Y - this.height;
+          this.velocityX = 0;
+          this.velocityY = 0;
+          this.isOnGround = true;
+          this.facing = options.facing; // 1 right, -1 left
+          this.maxHealth = 100;
+          this.health = this.maxHealth;
+          this.moveSpeed = 320; // px/s
+          this.jumpVelocity = 780; // px/s
+          this.isAttacking = false;
+          this.attackTimer = 0;
+          this.attackTotal = 220; // ms
+          this.attackActiveStart = 70; // ms
+          this.attackActiveEnd = 150; // ms
+          this.attackHasHit = false;
+          this.isBlocking = false;
+          this.blockSlow = 0.4;
+          this.hitstunTimer = 0;
+          this.controls = options.controls;
+
+          // Upgrades & equipment
+          this.armorReduction = 0; // 0..0.6
+          this.weaponName = 'sword';
+          this.weaponDamage = WEAPONS.sword.damage;
+          this.weaponReach = WEAPONS.sword.reach;
+          this.weaponKnockback = WEAPONS.sword.knockback;
+
+          // Hopper-style locomotion
+          this.hopCooldownMs = 320;
+          this.hopTimerMs = 0;
+          this.hopHorizImpulse = 360;
+          this.hopVertImpulse = this.jumpVelocity * 0.9;
+
+          // Swing arc state
+          this.swingStartDeg = -80; // relative to facing
+          this.swingEndDeg = 60;
+          // Attack timings (ms)
+          this.attackTotal = 320;
+          this.attackActiveStart = 90;
+          this.attackActiveEnd = 260;
+        }
+
+        get hurtbox() {
+          return { x: this.positionX, y: this.positionY, w: this.width, h: this.height };
+        }
+
+        get centerX() { return this.positionX + this.width / 2; }
+
+        takeDamage(amount) {
+          this.health = Math.max(0, this.health - amount);
+        }
+
+        applyKnockback(fromX, power) {
+          const direction = this.centerX < fromX ? -1 : 1; // push away from attacker
+          this.velocityX = power * direction;
+          this.velocityY = -power * 0.35;
+          this.isOnGround = false;
+        }
+
+        startAttack() {
+          if (this.isAttacking || this.hitstunTimer > 0) return;
+          this.isAttacking = true;
+          this.attackTimer = this.attackTotal;
+          this.attackHasHit = false;
+        }
+
+        setWeapon(name) {
+          if (!WEAPONS[name]) return;
+          this.weaponName = name;
+          this.weaponDamage = WEAPONS[name].damage;
+          this.weaponReach = WEAPONS[name].reach;
+          this.weaponKnockback = WEAPONS[name].knockback;
+        }
+
+        upgradeArmor() {
+          this.armorReduction = Math.min(0.6, this.armorReduction + 0.15);
+        }
+
+        upgradeWeapon() {
+          this.weaponDamage += 2;
+          this.weaponReach += 4;
+          this.weaponKnockback += 20;
+        }
+
+        upgradeHealth() {
+          this.maxHealth += 20;
+          this.health = this.maxHealth;
+        }
+
+        getFrontHandPosition() {
+          const headR = 14;
+          const headCx = this.positionX + this.width/2;
+          const headCy = this.positionY + headR + 6;
+          const torsoW = 28;
+          const torsoH = 38;
+          const torsoX = headCx - torsoW/2;
+          const torsoY = headCy + 6;
+          const armY = torsoY + 12;
+          const leftHandX = torsoX - 10;
+          const rightHandX = torsoX + torsoW + 10;
+          const frontHandX = this.facing === 1 ? rightHandX : leftHandX;
+          const frontHandY = armY + 6;
+          return { x: frontHandX, y: frontHandY };
+        }
+
+        getSwingAngleRad() {
+          let deg = this.facing === 1 ? -10 : 190; // idle carry angle
+          if (this.isAttacking) {
+            const elapsed = this.attackTotal - this.attackTimer;
+            const t = Math.max(0, Math.min(1, (elapsed - this.attackActiveStart) / (this.attackActiveEnd - this.attackActiveStart)));
+            const start = this.swingStartDeg;
+            const end = this.swingEndDeg;
+            const lerpDeg = start + (end - start) * t;
+            deg = this.facing === 1 ? lerpDeg : 180 - lerpDeg;
+          }
+          return deg * Math.PI / 180;
+        }
+
+        getWeaponTip() {
+          const pivot = this.getFrontHandPosition();
+          const ang = this.getSwingAngleRad();
+          const len = Math.min(84, this.weaponReach + 16);
+          const tipX = pivot.x + Math.cos(ang) * len;
+          const tipY = pivot.y + Math.sin(ang) * len;
+          return { cx: tipX, cy: tipY, r: 12 };
+        }
+
+        getAttackHitbox() {
+          if (!this.isAttacking) return null;
+          const elapsed = this.attackTotal - this.attackTimer;
+          if (elapsed < this.attackActiveStart || elapsed > this.attackActiveEnd) return null;
+          return this.getWeaponTip();
+        }
+
+        update(dtMs, inputs, opponent) {
+          const dt = dtMs / 1000;
+
+          // Face the opponent
+          this.facing = this.centerX < opponent.centerX ? 1 : -1;
+
+          // Block state
+          this.isBlocking = inputs.isDown(this.controls.block);
+
+          // Hopping movement
+          const movingLeft = inputs.isDown(this.controls.left);
+          const movingRight = inputs.isDown(this.controls.right);
+          const dir = movingLeft && !movingRight ? -1 : (movingRight && !movingLeft ? 1 : 0);
+          if (this.hopTimerMs > 0) this.hopTimerMs -= dtMs;
+
+          const speedScale = (this.isBlocking ? this.blockSlow : 1) * (this.hitstunTimer > 0 ? 0 : 1);
+          const canAct = this.hitstunTimer <= 0;
+
+          if (this.isOnGround && dir !== 0 && this.hopTimerMs <= 0 && canAct) {
+            this.velocityY = -this.hopVertImpulse;
+            this.velocityX = dir * this.hopHorizImpulse * speedScale;
+            this.isOnGround = false;
+            this.hopTimerMs = this.hopCooldownMs;
+          }
+
+          // Jump
+          if (inputs.pressedOnce(this.controls.jump) && this.isOnGround && canAct) {
+            this.velocityY = -this.jumpVelocity;
+            if (dir !== 0) this.velocityX = dir * this.hopHorizImpulse * 1.05 * speedScale;
+            this.isOnGround = false;
+            this.hopTimerMs = this.hopCooldownMs * 0.6;
+          }
+
+          // Air steer
+          if (!this.isOnGround && dir !== 0 && canAct) {
+            this.velocityX += dir * 560 * dt * speedScale;
+            const maxAir = 420;
+            if (this.velocityX > maxAir) this.velocityX = maxAir;
+            if (this.velocityX < -maxAir) this.velocityX = -maxAir;
+          }
+
+          // Attack
+          if (inputs.pressedOnce(this.controls.attack) && !this.isBlocking && this.hitstunTimer <= 0) {
+            this.startAttack();
+          }
+
+          // Apply gravity
+          this.velocityY += GRAVITY * dt;
+
+          // Integrate position
+          this.positionX += this.velocityX * dt;
+          this.positionY += this.velocityY * dt;
+
+          // World bounds
+          if (this.positionX < WORLD_LEFT) this.positionX = WORLD_LEFT;
+          if (this.positionX + this.width > WORLD_RIGHT) this.positionX = WORLD_RIGHT - this.width;
+
+          // Ground collision
+          const groundTop = GROUND_Y - this.height;
+          if (this.positionY >= groundTop) {
+            this.positionY = groundTop;
+            this.velocityY = 0;
+            this.isOnGround = true;
+            // ground friction
+            this.velocityX *= 0.88;
+          }
+
+          // Attack timer
+          if (this.isAttacking) {
+            this.attackTimer -= dtMs;
+            if (this.attackTimer <= 0) {
+              this.isAttacking = false;
+              this.attackTimer = 0;
+              this.attackHasHit = false;
+            }
+          }
+
+          // Hitstun timer
+          if (this.hitstunTimer > 0) {
+            this.hitstunTimer -= dtMs;
+            if (this.hitstunTimer < 0) this.hitstunTimer = 0;
+          }
+        }
+
+        draw(ctx) {
+          // Shadow
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          const shadowW = this.width * 0.9;
+          const shadowH = 8;
+          ctx.beginPath();
+          ctx.ellipse(this.positionX + this.width/2, GROUND_Y - 4, shadowW/2, shadowH/2, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Proportions and anchors
+          const headR = 14;
+          const headCx = this.positionX + this.width/2;
+          const headCy = this.positionY + headR + 6;
+          const torsoW = 28;
+          const torsoH = 38;
+          const torsoX = headCx - torsoW/2;
+          const torsoY = headCy + 6;
+          const hipY = torsoY + torsoH;
+          const footY = this.positionY + this.height;
+          const armY = torsoY + 12;
+          const leftShoulderX = torsoX;
+          const rightShoulderX = torsoX + torsoW;
+          const leftHandHomeX = torsoX - 10;
+          const rightHandHomeX = torsoX + torsoW + 10;
+
+          // Colors
+          const armor = this.color;
+          const outline = this.outline;
+          const skin = '#f1c7a3';
+          const cloth = 'rgba(255,255,255,0.06)';
+
+          // Movement phase for limb swing
+          const speed = Math.min(1, Math.abs(this.velocityX) / 360);
+          const phase = performance.now() / 220;
+          const swing = Math.sin(phase) * speed;
+
+          // Helper to draw a rotated rounded limb
+          function limb(x, y, len, thick, angleRad, color, stroke) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angleRad);
+            ctx.fillStyle = color;
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(0, -thick/2, len, thick, thick/2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Legs (back then front)
+          const legLenUpper = 22;
+          const legLenLower = 26;
+          const legThick = 8;
+          const backLegAngle = (-0.2 + swing * -0.7);
+          const frontLegAngle = (-0.2 + swing * 0.7);
+          const frontIsRight = this.facing === 1;
+          const backHipX = frontIsRight ? torsoX + 8 : torsoX + torsoW - 8;
+          const frontHipX = frontIsRight ? torsoX + torsoW - 8 : torsoX + 8;
+
+          // Back leg
+          limb(backHipX, hipY, legLenUpper, legThick, backLegAngle, armor, outline);
+          limb(backHipX + Math.cos(backLegAngle)*legLenUpper, hipY + Math.sin(backLegAngle)*legLenUpper,
+               legLenLower, legThick, backLegAngle + 0.25, armor, outline);
+
+          // Torso with subtle shading
+          const torsoGrad = ctx.createLinearGradient(0, torsoY, 0, torsoY + torsoH);
+          torsoGrad.addColorStop(0, armor);
+          torsoGrad.addColorStop(1, 'rgba(255,255,255,0.06)');
+          ctx.fillStyle = torsoGrad;
+          ctx.strokeStyle = outline;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(torsoX, torsoY, torsoW, torsoH, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          // Front leg
+          limb(frontHipX, hipY, legLenUpper, legThick, frontLegAngle, armor, outline);
+          limb(frontHipX + Math.cos(frontLegAngle)*legLenUpper, hipY + Math.sin(frontLegAngle)*legLenUpper,
+               legLenLower, legThick, frontLegAngle + 0.25, armor, outline);
+
+          // Head (skin) with face
+          ctx.fillStyle = skin;
+          ctx.strokeStyle = outline;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          // Eyes
+          ctx.fillStyle = '#111827';
+          const eyeOffsetX = 5 * (this.facing === 1 ? 1 : -1);
+          ctx.beginPath();
+          ctx.arc(headCx + eyeOffsetX, headCy - 2, 2.2, 0, Math.PI*2);
+          ctx.fill();
+
+          // Simple hair/helmet band
+          ctx.fillStyle = cloth;
+          ctx.fillRect(headCx - headR + 2, headCy - headR + 6, headR*2 - 4, 6);
+
+          // Arms (back then front)
+          const armThick = 7;
+          const armLenUpper = 18;
+          const armLenLower = 18;
+          const backShoulderX = frontIsRight ? leftShoulderX : rightShoulderX;
+          const frontShoulderX = frontIsRight ? rightShoulderX : leftShoulderX;
+          const backArmAngle = (0.2 + swing * 0.6) * (frontIsRight ? -1 : 1);
+          const frontArmAngle = (0.2 + swing * -0.6) * (frontIsRight ? -1 : 1);
+
+          // Back arm (skin)
+          limb(backShoulderX, armY, armLenUpper, armThick, backArmAngle, skin, outline);
+          const backElbowX = backShoulderX + Math.cos(backArmAngle)*armLenUpper;
+          const backElbowY = armY + Math.sin(backArmAngle)*armLenUpper;
+          limb(backElbowX, backElbowY, armLenLower, armThick, backArmAngle + 0.25, skin, outline);
+
+          // Front arm (skin)
+          limb(frontShoulderX, armY, armLenUpper, armThick, frontArmAngle, skin, outline);
+          const frontElbowX = frontShoulderX + Math.cos(frontArmAngle)*armLenUpper;
+          const frontElbowY = armY + Math.sin(frontArmAngle)*armLenUpper;
+          limb(frontElbowX, frontElbowY, armLenLower, armThick, frontArmAngle + 0.2, skin, outline);
+
+          // Weapon at front hand (maintain previous pivot for consistency)
+          const frontHandX = this.facing === 1 ? rightHandHomeX : leftHandHomeX;
+          const frontHandY = armY + 6;
+          ctx.save();
+          ctx.translate(frontHandX, frontHandY);
+          ctx.rotate(this.getSwingAngleRad());
+          ctx.fillStyle = 'rgba(220,225,230,0.75)';
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          const weaponLen = Math.min(84, this.weaponReach + 16);
+          const weaponThick = this.weaponName.includes('axe') || this.weaponName === 'club' ? 6 : 4;
+          ctx.fillRect(0, -weaponThick/2, weaponLen, weaponThick);
+          ctx.strokeRect(0, -weaponThick/2, weaponLen, weaponThick);
+          if (this.isAttacking) {
+            ctx.fillStyle = 'rgba(255,225,128,0.45)';
+            ctx.beginPath();
+            ctx.arc(weaponLen, 0, 5, 0, Math.PI*2);
+            ctx.fill();
+          }
+          ctx.restore();
+
+          // Optional attack hitbox debug (kept)
+          const hitbox = this.getAttackHitbox();
+          if (hitbox) {
+            // intentionally minimal; debug-only
+          }
+        }
+      }
+
+      function rectsOverlap(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function circleRectOverlap(circle, rect) {
+        // circle: {cx, cy, r} rect: {x,y,w,h}
+        const closestX = Math.max(rect.x, Math.min(circle.cx, rect.x + rect.w));
+        const closestY = Math.max(rect.y, Math.min(circle.cy, rect.y + rect.h));
+        const dx = circle.cx - closestX;
+        const dy = circle.cy - closestY;
+        return (dx*dx + dy*dy) <= (circle.r * circle.r);
+      }
+
+      class GameState {
+        constructor() {
+          this.roundTimeMs = Infinity; // no time limit
+          this.timeLeftMs = this.roundTimeMs;
+          this.inCountdown = 2000; // 2s ready
+          this.ended = false;
+          this.winner = null; // 'P1', 'P2', 'Draw'
+
+          this.inputs = new InputManager();
+
+          this.p1 = new Fighter({
+            name: 'P1',
+            color: '#2bc2ff',
+            outline: '#157aa1',
+            startX: 200,
+            facing: 1,
+            controls: {
+              left: 'KeyA', right: 'KeyD', jump: 'KeyW', attack: 'KeyF', block: 'KeyS'
+            }
+          });
+
+          this.p2 = new Fighter({
+            name: 'P2',
+            color: '#ff5a8e',
+            outline: '#a1254d',
+            startX: BASE_WIDTH - 200 - 40,
+            facing: -1,
+            controls: {
+              left: 'KeyJ', right: 'KeyL', jump: 'KeyI', attack: 'KeyH', block: 'KeyK'
+            }
+          });
+
+          // Starting weapons: P1 random, P2 defaults to sword
+          const weaponKeys = Object.keys(WEAPONS);
+          const randomWeapon = weaponKeys[Math.floor(Math.random() * weaponKeys.length)];
+          this.p1.setWeapon(randomWeapon);
+          this.p2.setWeapon('sword');
+
+          // Bot control for P2 (red)
+          this.botEnabled = true;
+          this.botPressed = new Set();
+          this.botAttackCd = 0;
+          this.botJumpCd = 0;
+
+          // Upgrade phase state
+          this.upgradePhase = false;
+
+          this.lastNow = performance.now();
+          this.accumulator = 0;
+
+          // Blood FX
+          this.bloodParticles = []; // {x,y,vx,vy,r,life,alive}
+          this.bloodDecals = []; // {x,y,rx,ry,a}
+
+          // Bot difficulty scaling
+          this.botStrength = 0; // persists across rounds
+          this.timeInRoundMs = 0;
+        }
+
+        resetRound() {
+          this.timeLeftMs = this.roundTimeMs;
+          this.inCountdown = 2000;
+          this.ended = false;
+          this.winner = null;
+          this.p1.positionX = 200;
+          this.p1.positionY = GROUND_Y - this.p1.height;
+          this.p1.velocityX = 0; this.p1.velocityY = 0; this.p1.health = this.p1.maxHealth; this.p1.isAttacking = false; this.p1.hitstunTimer = 0;
+          this.p2.positionX = BASE_WIDTH - 200 - this.p2.width;
+          this.p2.positionY = GROUND_Y - this.p2.height;
+          this.p2.velocityX = 0; this.p2.velocityY = 0; this.p2.health = this.p2.maxHealth; this.p2.isAttacking = false; this.p2.hitstunTimer = 0;
+
+          // Reset round timers (but keep botStrength)
+          this.timeInRoundMs = 0;
+        }
+
+        update(dtMs) {
+          if (this.ended) return;
+
+          if (this.inCountdown > 0) {
+            this.inCountdown -= dtMs;
+            if (this.inCountdown < 0) this.inCountdown = 0;
+          } else if (Number.isFinite(this.timeLeftMs)) {
+            this.timeLeftMs -= dtMs;
+            if (this.timeLeftMs <= 0) {
+              this.timeLeftMs = 0;
+              this.endRound();
+            }
+          }
+
+          if (this.inCountdown <= 0) {
+            // Update bot inputs before fighters read input
+            this.updateBot(dtMs);
+
+            // Update fighters
+            this.p1.update(dtMs, this.inputs, this.p2);
+            this.p2.update(dtMs, this.inputs, this.p1);
+          } else {
+            // Stand still during countdown; face each other
+            this.p1.velocityX = 0; this.p1.velocityY = 0; this.p1.isOnGround = true; this.p1.isAttacking = false; this.p1.hitstunTimer = 0;
+            this.p2.velocityX = 0; this.p2.velocityY = 0; this.p2.isOnGround = true; this.p2.isAttacking = false; this.p2.hitstunTimer = 0;
+            this.p1.facing = this.p1.centerX < this.p2.centerX ? 1 : -1;
+            this.p2.facing = this.p2.centerX < this.p1.centerX ? 1 : -1;
+          }
+
+          // Resolve attacks only after countdown
+          if (this.inCountdown <= 0) {
+            this.resolveCombat(this.p1, this.p2);
+            this.resolveCombat(this.p2, this.p1);
+          }
+
+          // UI updates
+          const p1Ratio = this.p1.health / this.p1.maxHealth;
+          const p2Ratio = this.p2.health / this.p2.maxHealth;
+          p1Fill.style.transform = `scaleX(${Math.max(0, Math.min(1, p1Ratio))})`;
+          p2Fill.style.transform = `scaleX(${Math.max(0, Math.min(1, p2Ratio))})`;
+          timerEl.textContent = Number.isFinite(this.timeLeftMs)
+            ? (this.timeLeftMs / 1000).toFixed(1)
+            : '∞';
+          if (p2Label) p2Label.textContent = this.botEnabled ? 'Player 2 (Bot)' : 'Player 2 (Human)';
+
+          // Check end conditions
+          if (this.p1.health <= 0 || this.p2.health <= 0) {
+            this.endRound();
+          }
+
+          // Blood particles update
+          this.timeInRoundMs += dtMs;
+          this.updateBlood(dtMs);
+        }
+
+        setBotKey(code, down) {
+          if (!this.botEnabled) return;
+          const wasDown = this.botPressed.has(code);
+          if (down && !wasDown) {
+            this.botPressed.add(code);
+            if (!this.inputs.pressed.has(code)) {
+              this.inputs.justPressed.add(code);
+            }
+            this.inputs.pressed.add(code);
+          } else if (!down && wasDown) {
+            this.botPressed.delete(code);
+            this.inputs.pressed.delete(code);
+            this.inputs.justReleased.add(code);
+          }
+        }
+
+        updateBot(dtMs) {
+          if (!this.botEnabled || this.ended) return;
+          // Allow movement during countdown; damage is already gated elsewhere
+          const p1 = this.p1;
+          const p2 = this.p2;
+
+          // Cooldowns
+          this.botAttackCd = Math.max(0, this.botAttackCd - dtMs);
+          this.botJumpCd = Math.max(0, this.botJumpCd - dtMs);
+
+          const diff = this.getBotDifficulty();
+
+          // Desired inputs
+          let wantLeft = false;
+          let wantRight = false;
+          let wantJump = false;
+          let wantAttack = false;
+          let wantBlock = false;
+
+          const dx = p1.centerX - p2.centerX;
+          const dist = Math.abs(dx);
+          const p1FacingP2 = p1.facing === (p1.centerX < p2.centerX ? 1 : -1);
+          const danger = p1.isAttacking && p1FacingP2 && dist < (120 + 40 * diff);
+
+          // Block when in immediate danger
+          if (danger && p2.hitstunTimer <= 0) {
+            wantBlock = true;
+          }
+
+          // Movement towards/away to maintain optimal range
+          if (!wantBlock && p2.hitstunTimer <= 0) {
+            const desiredMin = 70;
+            const desiredMax = 110;
+            if (dist > desiredMax) {
+              if (dx > 0) wantRight = true; else wantLeft = true;
+            } else if (dist < desiredMin) {
+              if (dx > 0) wantLeft = true; else wantRight = true;
+            }
+          }
+
+          // Attack when in range and not blocking (prefer during hop descend)
+          const descending = !p2.isOnGround && p2.velocityY > 50;
+          const rangeBuff = 10 + 30 * diff;
+          if (!wantBlock && dist <= (p2.weaponReach + 12 + rangeBuff) && this.botAttackCd <= 0 && !p2.isAttacking && p2.hitstunTimer <= 0 && (p2.isOnGround || descending)) {
+            wantAttack = true;
+            const cdScale = Math.max(0.5, 1 - 0.45 * diff);
+            this.botAttackCd = (400 + Math.random() * 300) * cdScale;
+          }
+
+          // Occasional hops/jumps to pressure or escape
+          if (!wantBlock && p2.isOnGround && this.botJumpCd <= 0 && Math.random() < (0.03 + 0.02 * diff)) {
+            wantJump = true;
+            const jScale = Math.max(0.6, 1 - 0.4 * diff);
+            this.botJumpCd = (900 + Math.random() * 900) * jScale;
+          }
+
+          // Apply virtual keys to input system
+          const c = p2.controls;
+          this.setBotKey(c.left, wantLeft);
+          this.setBotKey(c.right, wantRight);
+          this.setBotKey(c.block, wantBlock);
+          this.setBotKey(c.attack, wantAttack);
+          this.setBotKey(c.jump, wantJump);
+        }
+
+        resolveCombat(attacker, defender) {
+          if (!attacker.isAttacking || attacker.attackHasHit) return;
+          const tip = attacker.getAttackHitbox();
+          if (!tip) return;
+          if (circleRectOverlap(tip, defender.hurtbox)) {
+            attacker.attackHasHit = true;
+            let baseDamage = attacker.weaponDamage;
+            let knockback = attacker.weaponKnockback;
+            // Bot gets stronger: scale P2's outgoing damage/knockback over time/rounds
+            if (attacker === this.p2) {
+              const diff = this.getBotDifficulty();
+              const scale = 1 + 0.35 * diff;
+              baseDamage = Math.round(baseDamage * scale);
+              knockback = Math.round(knockback * (1 + 0.25 * diff));
+            }
+            // Blocking: if defender is blocking and facing attacker
+            const defenderFacingAttacker = defender.facing === (defender.centerX < attacker.centerX ? 1 : -1);
+            if (defender.isBlocking && defenderFacingAttacker) {
+              baseDamage = Math.max(1, Math.round(baseDamage * 0.25));
+              knockback = Math.max(120, Math.round(knockback * 0.4));
+            } else {
+              defender.hitstunTimer = 260;
+            }
+            const reduced = Math.max(1, Math.round(baseDamage * (1 - defender.armorReduction)));
+            defender.takeDamage(reduced);
+            defender.applyKnockback(attacker.centerX, knockback);
+
+            // Blood on hit
+            const hitX = defender.centerX;
+            const hitY = defender.positionY + defender.height * 0.4;
+            const dir = attacker.centerX < defender.centerX ? 1 : -1;
+            const intensity = Math.min(40, 10 + reduced * 1.2);
+            this.spawnBlood(hitX, hitY, dir, intensity);
+          }
+        }
+
+        endRound() {
+          if (this.ended) return;
+          this.ended = true;
+          let winner = 'Draw';
+          if (this.p1.health !== this.p2.health) {
+            winner = this.p1.health > this.p2.health ? 'P1' : 'P2';
+          }
+          this.winner = winner;
+          this.upgradePhase = true;
+
+          // Increase bot strength each round, extra if bot wins
+          this.botStrength += winner === 'P2' ? 0.25 : 0.12;
+        }
+
+        applyUpgrades(choice) {
+          if (!this.upgradePhase) return;
+          if (choice === 1) this.p1.upgradeArmor();
+          else if (choice === 2) this.p1.upgradeWeapon();
+          else if (choice === 3) this.p1.upgradeHealth();
+
+          const botChoice = 1 + Math.floor(Math.random() * 3);
+          if (botChoice === 1) this.p2.upgradeArmor();
+          else if (botChoice === 2) this.p2.upgradeWeapon();
+          else if (botChoice === 3) this.p2.upgradeHealth();
+
+          this.upgradePhase = false;
+          this.resetRound();
+        }
+
+        draw() {
+          // Sky background
+          const g = ctx.createLinearGradient(0, 0, 0, BASE_HEIGHT);
+          g.addColorStop(0, '#0e1323');
+          g.addColorStop(1, '#0a0e19');
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+
+          // Arena floor
+          ctx.fillStyle = '#10182b';
+          ctx.fillRect(0, GROUND_Y, BASE_WIDTH, BASE_HEIGHT - GROUND_Y);
+          ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+          ctx.beginPath();
+          ctx.moveTo(0, GROUND_Y);
+          ctx.lineTo(BASE_WIDTH, GROUND_Y);
+          ctx.stroke();
+
+          // Subtle parallax shapes
+          ctx.fillStyle = 'rgba(255,255,255,0.03)';
+          for (let i = 0; i < 8; i++) {
+            const w = 80 + i * 30;
+            const h = 10;
+            const x = (i * 120 + (performance.now()/40) % BASE_WIDTH) % BASE_WIDTH - 60;
+            const y = GROUND_Y - 80 - i * 12;
+            ctx.fillRect(x, y, w, h);
+          }
+
+          // Blood decals on ground (behind fighters)
+          this.drawBloodDecals(ctx);
+
+          // Fighters
+          this.p1.draw(ctx);
+          this.p2.draw(ctx);
+
+          // Blood particles (in front)
+          this.drawBloodParticles(ctx);
+
+          // Center overlays
+          centerMessage.textContent = '';
+          if (this.inCountdown > 0 && !this.ended) {
+            const seconds = Math.ceil(this.inCountdown / 1000);
+            centerMessage.textContent = seconds === 0 ? 'Fight!' : String(seconds);
+          }
+          if (this.ended) {
+            if (this.upgradePhase) {
+              const title = this.winner === 'Draw' ? 'Round Over' : `${this.winner} Wins!`;
+              centerMessage.textContent = `${title}  Choose upgrade: 1 Armor  2 Weapon  3 Health`;
+            } else {
+              centerMessage.textContent = this.winner === 'Draw' ? 'Draw!' : `${this.winner} Wins!`;
+            }
+          }
+        }
+
+        // Difficulty grows within a round and across rounds, clamped to sane limits
+        getBotDifficulty() {
+          const timeScale = Math.min(0.6, this.timeInRoundMs / 60000); // up to +0.6 over 60s
+          const base = this.botStrength; // grows ~0.1-0.25 per round
+          return Math.max(0, Math.min(1.6, base + timeScale));
+        }
+
+        spawnBlood(x, y, dir, count) {
+          const n = Math.floor(count);
+          for (let i = 0; i < n; i++) {
+            const ang = (Math.random() * 0.9 - 0.45) + (dir > 0 ? 0 : Math.PI);
+            const spd = 200 + Math.random() * 360;
+            const r = 2 + Math.random() * 3;
+            this.bloodParticles.push({
+              x, y,
+              vx: Math.cos(ang) * spd,
+              vy: Math.sin(ang) * spd - 120,
+              r,
+              life: 500 + Math.random() * 500,
+              alive: true
+            });
+          }
+        }
+
+        updateBlood(dtMs) {
+          const g = 2600; // gravity for blood
+          for (let i = 0; i < this.bloodParticles.length; i++) {
+            const p = this.bloodParticles[i];
+            if (!p.alive) continue;
+            p.vy += g * (dtMs/1000);
+            p.x += p.vx * (dtMs/1000);
+            p.y += p.vy * (dtMs/1000);
+            p.life -= dtMs;
+            // collide with ground
+            const floorY = GROUND_Y;
+            if (p.y + p.r >= floorY) {
+              p.alive = false;
+              // create decal ellipse
+              const rx = Math.max(2, p.r * (0.8 + Math.random()*0.8));
+              const ry = rx * (0.45 + Math.random()*0.25);
+              this.bloodDecals.push({ x: p.x, y: floorY - 1, rx, ry, a: 0.9 });
+            }
+            if (p.life <= 0) p.alive = false;
+          }
+          // fade decals slowly, keep many
+          for (let i = 0; i < this.bloodDecals.length; i++) {
+            const d = this.bloodDecals[i];
+            d.a *= 0.999;
+          }
+          // Trim arrays if too large
+          if (this.bloodParticles.length > 800) this.bloodParticles = this.bloodParticles.filter(p=>p.alive);
+          if (this.bloodDecals.length > 600) this.bloodDecals.splice(0, this.bloodDecals.length - 600);
+        }
+
+        drawBloodDecals(ctx) {
+          for (let i = 0; i < this.bloodDecals.length; i++) {
+            const d = this.bloodDecals[i];
+            ctx.fillStyle = `rgba(120, 10, 18, ${d.a})`;
+            ctx.beginPath();
+            ctx.ellipse(d.x, d.y, d.rx, d.ry, 0, 0, Math.PI*2);
+            ctx.fill();
+          }
+        }
+
+        drawBloodParticles(ctx) {
+          for (let i = 0; i < this.bloodParticles.length; i++) {
+            const p = this.bloodParticles[i];
+            if (!p.alive) continue;
+            ctx.fillStyle = 'rgba(180,20,28,0.95)';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            ctx.fill();
+          }
+        }
+      }
+
+      const game = new GameState();
+
+      window.addEventListener('keydown', (e) => {
+        // Toggle bot manually
+        if (e.code === 'KeyB') {
+          game.botEnabled = !game.botEnabled;
+        }
+        // If human presses any P2 key, disable bot
+        const p2Keys = new Set(['KeyJ','KeyL','KeyI','KeyH','KeyK']);
+        if (p2Keys.has(e.code) && game.botEnabled) {
+          game.botEnabled = false;
+        }
+        if (e.code === 'Enter' && game.ended) {
+          game.resetRound();
+        }
+        if (game.ended && game.upgradePhase) {
+          if (e.code === 'Digit1') game.applyUpgrades(1);
+          if (e.code === 'Digit2') game.applyUpgrades(2);
+          if (e.code === 'Digit3') game.applyUpgrades(3);
+        }
+      });
+
+      function loop() {
+        const now = performance.now();
+        let dtMs = now - game.lastNow;
+        if (dtMs > 50) dtMs = 50; // clamp to avoid huge steps
+        game.lastNow = now;
+
+        if (!game.ended) {
+          game.update(dtMs);
+        } else {
+          // Still update UI after round end
+          game.update(0);
+        }
+        game.draw();
+        game.inputs.endFrame();
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
+
+

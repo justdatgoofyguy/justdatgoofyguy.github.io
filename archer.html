@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battle Quest</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .game-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 95vw;
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            text-align: center;
+            color: #333;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .turn-indicator {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .turn-indicator.blue {
+            background: linear-gradient(135deg, #667eea, #5a67d8);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .turn-indicator.red {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+            box-shadow: 0 4px 15px rgba(245, 101, 101, 0.4);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-btn {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .mode-btn.shoot-mode {
+            background: linear-gradient(135deg, #ed8936, #dd6b20);
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .end-turn-btn {
+            background: linear-gradient(135deg, #718096, #4a5568);
+            color: white;
+        }
+
+        .end-turn-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .reset-btn {
+            background: linear-gradient(135deg, #9f7aea, #805ad5);
+            color: white;
+        }
+
+        .viewport-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            overflow: hidden;
+            border: 3px solid #4a5568;
+            border-radius: 12px;
+            background: #2d3748;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        #gameCanvas {
+            position: absolute;
+            cursor: crosshair;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #2d3748;
+        }
+
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 25px;
+            color: #4a5568;
+            line-height: 1.6;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+
+        .player-stats {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            min-width: 150px;
+        }
+
+        .player-stats.blue {
+            background: rgba(102, 126, 234, 0.1);
+            border: 2px solid #667eea;
+        }
+
+        .player-stats.red {
+            background: rgba(245, 101, 101, 0.1);
+            border: 2px solid #f56565;
+        }
+
+        .winner-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .winner-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .winner-content h2 {
+            font-size: 3em;
+            margin: 0 0 20px 0;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .minimap {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            overflow: hidden;
+        }
+
+        #minimapCanvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>⚔️ Battle Quest ⚔️</h1>
+        
+        <div class="controls">
+            <div class="turn-indicator blue" id="turnIndicator">
+                Blue Player's Turn
+            </div>
+            
+            <div class="action-buttons">
+                <button class="mode-btn" id="modeBtn" onclick="toggleMode()">
+                    Mode: MOVE
+                </button>
+                <button class="end-turn-btn" onclick="endTurn()">
+                    End Turn
+                </button>
+                <button class="reset-btn" onclick="resetGame()">
+                    New Game
+                </button>
+                <button class="mode-btn" onclick="buyUnit('archer')">Buy Archer (10g)</button>
+                <button class="mode-btn" onclick="buyUnit('knight')">Buy Knight (15g)</button>
+                <button class="mode-btn" onclick="buyUnit('miner')">Buy Miner (8g)</button>
+                <button class="mode-btn" onclick="buyUnit('builder')">Buy Builder (12g)</button>
+                <button class="mode-btn" onclick="buyUnit('cannon')">Buy Cannon (20g)</button>
+                <button class="mode-btn" onclick="setBuildType('stone')">Stone</button>
+                <button class="mode-btn" onclick="setBuildType('wood')">Wood</button>
+                <button class="mode-btn" onclick="setBuildType('door')">Door</button>
+                <!-- Merchant sells/buys removed per request -->
+                <button class="mode-btn" id="upgradeBtn" onclick="upgradeSelectedUnit()" disabled>Upgrade (10g)</button>
+            </div>
+        </div>
+
+        <div class="viewport-container">
+            <canvas id="gameCanvas"></canvas>
+            <div class="minimap">
+                <canvas id="minimapCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="player-stats blue">
+                <h4>🏹 Blue Team</h4>
+                <div id="blueStats">Gold: 0 | A: 0 K: 0 M: 0</div>
+            </div>
+            <div class="player-stats red">
+                <h4>🏹 Red Team</h4>
+                <div id="redStats">Gold: 0 | A: 0 K: 0 M: 0</div>
+            </div>
+            
+        </div>
+
+        <div class="instructions">
+            <h3>How to Play:</h3>
+            <ul>
+                <li><strong>View:</strong> The full 50x50 battlefield is visible at once</li>
+                <li><strong>Toggle Mode:</strong> Switch between MOVE and ATTACK modes</li>
+                <li><strong>MOVE Mode:</strong> Archers up to 5 squares. Knights up to 5. Miners up to 5.</li>
+                <li><strong>ATTACK Mode:</strong> Archers shoot up to 5 squares in straight lines. Knights attack adjacent. Miners do not attack.</li>
+                <li><strong>Ores & Gold:</strong> Miners collect gold by moving onto gold ore tiles. Five green ores are worth 50 gold each. One diamond ore is in the center; requires 2 miners moving onto it (total) to claim 100 gold. Spend gold to buy units.</li>
+                <li><strong>Monsters:</strong> 10 monsters guard the diamond. After each turn, they move up to 3 squares; they only kill units that are within 10 squares of the diamond.</li>
+                <li><strong>Mini-map:</strong> Shows full battlefield overview in bottom-right corner</li>
+                <li>Eliminate all enemy units to win!</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="winner-modal" id="winnerModal">
+        <div class="winner-content">
+            <h2 id="winnerText">Winner!</h2>
+            <button class="reset-btn" onclick="resetGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const GRID_SIZE = 50;
+        const CELL_SIZE = 12;
+        const VIEWPORT_WIDTH = GRID_SIZE * CELL_SIZE;
+        const VIEWPORT_HEIGHT = GRID_SIZE * CELL_SIZE;
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimapCanvas');
+        const minimapCtx = minimapCanvas.getContext('2d');
+        
+        // Set canvas actual size
+        canvas.width = GRID_SIZE * CELL_SIZE;
+        canvas.height = GRID_SIZE * CELL_SIZE;
+        
+        minimapCanvas.width = GRID_SIZE;
+        minimapCanvas.height = GRID_SIZE;
+        
+        // Ensure the full board is visible within the viewport container
+        const viewportContainer = document.querySelector('.viewport-container');
+        if (viewportContainer) {
+            viewportContainer.style.width = VIEWPORT_WIDTH + 'px';
+            viewportContainer.style.height = VIEWPORT_HEIGHT + 'px';
+        }
+        
+        let cameraX = (GRID_SIZE * CELL_SIZE - VIEWPORT_WIDTH) / 2;
+        let cameraY = (GRID_SIZE * CELL_SIZE - VIEWPORT_HEIGHT) / 2;
+        
+        let isDragging = false;
+        let dragStartX, dragStartY;
+        let dragStartCameraX, dragStartCameraY;
+        
+        let currentPlayer = 'blue';
+        let mode = 'move'; // 'move' | 'attack' | 'build'
+        let selectedUnit = null;
+        let moveTargets = [];
+        let attackTargets = [];
+        let projectiles = []; // {sx,sy,tx,ty,start,duration,curX,curY,onComplete}
+        let animationFrameId = null;
+        let slashes = []; // {x,y,start,duration,onComplete}
+        let explosions = []; // {x,y,start,duration,onComplete}
+        let walkers = []; // {unit,color,fromX,fromY,toX,toY,start,duration,curX,curY,onComplete}
+        let monsterWalkers = []; // {monster,fromX,fromY,toX,toY,start,duration,curX,curY,onComplete}
+        
+        const START_ARCHERS = 10;
+        const START_KNIGHTS = 5;
+        const START_MINERS = 5;
+        
+        const MOVE_RANGE = { archer: 5, knight: 5, miner: 5, builder: 4, cannon: 1 };
+        const UNIT_MAX_HP = { archer: 10, knight: 15, miner: 10, builder: 10, cannon: 15 };
+        const UNIT_ATTACK = { archer: 5, knight: 7, cannon: 10 };
+        
+        // Monsters
+        const MONSTER_COUNT = 10;
+        const MONSTER_MOVE_RANGE = 3;
+        
+        const COSTS = { archer: 10, knight: 15, miner: 8, builder: 12, cannon: 20 };
+        const BUILD_COST = { stone: 6, wood: 4, door: 5 };
+        let buildType = 'stone';
+        let structures = []; // {type, x, y}
+        
+        // Game economy
+        let gold = { blue: 0, red: 0 };
+        let ores = [];
+        // Monsters collection declared early so occupancy checks work before spawning
+        let monsters = [];
+        const DIAMOND_VALUE = 1000;
+        const DIAMOND_REQUIRED = 2;
+        let diamondProgress = { blue: 0, red: 0 };
+        const CENTER_X = Math.floor(GRID_SIZE / 2);
+        const CENTER_Y = Math.floor(GRID_SIZE / 2);
+
+        function isOccupied(x, y) {
+            for (let color in units) {
+                if (units[color].some(u => u.alive && u.x === x && u.y === y)) return true;
+            }
+            if (monsters.some(m => m.alive && m.x === x && m.y === y)) return true;
+            return false;
+        }
+
+        function createSideUnits(x1, x2) {
+            // Spread units across multiple columns near each side, with generous row spacing
+            const positions = [];
+            const colsBlue = [2, 4, 6, 8];
+            const colsRed = [GRID_SIZE - 3, GRID_SIZE - 5, GRID_SIZE - 7, GRID_SIZE - 9];
+            const cols = x1 < x2 ? colsBlue : colsRed;
+            const rowStart = 1;
+            const rowEnd = GRID_SIZE - 1;
+            const rowStep = 3;
+            for (let y = rowStart; y < rowEnd; y += rowStep) {
+                for (let ci = 0; ci < cols.length; ci++) {
+                    positions.push({ x: cols[ci], y });
+                }
+            }
+            const unitsForSide = [];
+            let idx = 0;
+            // Place archers
+            for (let i = 0; i < START_ARCHERS && idx < positions.length; i++, idx++) {
+                const p = positions[idx];
+                unitsForSide.push({ type: 'archer', x: p.x, y: p.y, alive: true, hp: UNIT_MAX_HP.archer });
+            }
+            // Place knights
+            for (let i = 0; i < START_KNIGHTS && idx < positions.length; i++, idx++) {
+                const p = positions[idx];
+                unitsForSide.push({ type: 'knight', x: p.x, y: p.y, alive: true, hp: UNIT_MAX_HP.knight });
+            }
+            // Place miners
+            for (let i = 0; i < START_MINERS && idx < positions.length; i++, idx++) {
+                const p = positions[idx];
+                unitsForSide.push({ type: 'miner', x: p.x, y: p.y, alive: true, hp: UNIT_MAX_HP.miner });
+            }
+            // Place initial builder if space remains (optional 1 each side)
+            if (idx < positions.length) {
+                const p = positions[idx++];
+                unitsForSide.push({ type: 'builder', x: p.x, y: p.y, alive: true, hp: UNIT_MAX_HP.builder });
+            }
+            return unitsForSide;
+        }
+
+        function spawnInitialOres(count) {
+            ores = [];
+            let attempts = 0;
+            while (ores.length < count && attempts < count * 50) {
+                attempts++;
+                const x = Math.floor(Math.random() * GRID_SIZE);
+                const y = Math.floor(Math.random() * GRID_SIZE);
+                // avoid center diamond location
+                if (x === CENTER_X && y === CENTER_Y) continue;
+                if (!isOccupied(x, y) && !ores.some(o => o.x === x && o.y === y)) {
+                    ores.push({ type: 'gold', x, y });
+                }
+            }
+            // Add five green ores worth 50 gold in mid-field
+            let greenCount = 0;
+            attempts = 0;
+            const midMin = Math.floor(GRID_SIZE * 0.25);
+            const midMax = Math.ceil(GRID_SIZE * 0.75);
+            while (greenCount < 5 && attempts < 500) {
+                attempts++;
+                const gx = Math.floor(Math.random() * (midMax - midMin)) + midMin;
+                const gy = Math.floor(Math.random() * (midMax - midMin)) + midMin;
+                if ((gx === CENTER_X && gy === CENTER_Y)) continue;
+                if (!isOccupied(gx, gy) && !ores.some(o => o.x === gx && o.y === gy)) {
+                    ores.push({ type: 'green', x: gx, y: gy });
+                    greenCount++;
+                }
+            }
+        }
+
+        function spawnRandomOre() {
+            for (let tries = 0; tries < 100; tries++) {
+                const x = Math.floor(Math.random() * GRID_SIZE);
+                const y = Math.floor(Math.random() * GRID_SIZE);
+                if (x === CENTER_X && y === CENTER_Y) continue;
+                if (!isOccupied(x, y) && !ores.some(o => o.x === x && o.y === y)) {
+                    ores.push({ type: 'gold', x, y });
+                    return;
+                }
+            }
+        }
+
+        function placeDiamondOre() {
+            // Ensure exactly one diamond ore at center
+            ores = ores.filter(o => !(o.x === CENTER_X && o.y === CENTER_Y));
+            ores.push({ type: 'diamond', x: CENTER_X, y: CENTER_Y });
+            diamondProgress = { blue: 0, red: 0 };
+        }
+
+        // Initialize units
+        let units = {
+            blue: createSideUnits(2, 3),
+            red: createSideUnits(GRID_SIZE - 3, GRID_SIZE - 4)
+        };
+        spawnInitialOres(30);
+        placeDiamondOre();
+
+        // Monsters
+        function spawnMonsters() {
+            monsters = [];
+            const midMin = Math.floor(GRID_SIZE * 0.3);
+            const midMax = Math.ceil(GRID_SIZE * 0.7);
+            let tries = 0;
+            while (monsters.length < MONSTER_COUNT && tries < MONSTER_COUNT * 200) {
+                tries++;
+                const x = Math.floor(Math.random() * (midMax - midMin)) + midMin;
+                const y = Math.floor(Math.random() * (midMax - midMin)) + midMin;
+                if (!isOccupied(x, y)) {
+                    monsters.push({ x, y, alive: true, hp: 1 });
+                }
+            }
+        }
+        spawnMonsters();
+        
+        function drawGrid() {
+            ctx.save();
+            ctx.translate(-cameraX, -cameraY);
+            
+            // Clear and draw background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw 3D-looking board tiles
+            for (let gy = 0; gy < GRID_SIZE; gy++) {
+                for (let gx = 0; gx < GRID_SIZE; gx++) {
+                    drawTile3D(gx, gy);
+                }
+            }
+            
+            // Draw ores
+            ores.forEach(ore => {
+                if (ore.type === 'diamond') {
+                    // diamond styled
+                    ctx.fillStyle = '#38b2ac';
+                    ctx.beginPath();
+                    const cx = ore.x * CELL_SIZE + CELL_SIZE / 2;
+                    const cy = ore.y * CELL_SIZE + CELL_SIZE / 2;
+                    const r = CELL_SIZE * 0.35;
+                    ctx.moveTo(cx, cy - r);
+                    ctx.lineTo(cx + r, cy);
+                    ctx.lineTo(cx, cy + r);
+                    ctx.lineTo(cx - r, cy);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (ore.type === 'green') {
+                    // green ore
+                    ctx.fillStyle = '#48bb78';
+                    ctx.fillRect(ore.x * CELL_SIZE + CELL_SIZE * 0.15, ore.y * CELL_SIZE + CELL_SIZE * 0.15, CELL_SIZE * 0.7, CELL_SIZE * 0.7);
+                } else {
+                    ctx.fillStyle = '#d69e2e';
+                    ctx.fillRect(ore.x * CELL_SIZE + CELL_SIZE * 0.2, ore.y * CELL_SIZE + CELL_SIZE * 0.2, CELL_SIZE * 0.6, CELL_SIZE * 0.6);
+                }
+            });
+
+            // Highlight valid moves/shots (overlay on top surface)
+            if (selectedUnit) {
+                if (mode === 'move') {
+                    moveTargets.forEach(target => {
+                        ctx.fillStyle = 'rgba(72, 187, 120, 0.35)';
+                        ctx.fillRect(target.x * CELL_SIZE, target.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    });
+                } else {
+                    attackTargets.forEach(target => {
+                        ctx.fillStyle = 'rgba(237, 137, 54, 0.35)';
+                        ctx.fillRect(target.x * CELL_SIZE, target.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    });
+                }
+            }
+            
+            // Draw units (tiny men with tools) and walking animations
+            for (let color in units) {
+                units[color].forEach(unit => {
+                    if (unit.alive) {
+                        // Selection indicator ring
+                        if (selectedUnit === unit) {
+                            ctx.strokeStyle = '#facc15';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(unit.x * CELL_SIZE + CELL_SIZE/2, unit.y * CELL_SIZE + CELL_SIZE/2, CELL_SIZE * 0.46, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+
+                        // HP bar
+                        const maxHp = UNIT_MAX_HP[unit.type] || 10;
+                        const hpFrac = Math.max(0, Math.min(1, (unit.hp ?? maxHp) / maxHp));
+                        const barWidth = CELL_SIZE * 0.8;
+                        const barHeight = 3;
+                        const barX = unit.x * CELL_SIZE + (CELL_SIZE - barWidth) / 2;
+                        const barY = unit.y * CELL_SIZE - 6;
+                        ctx.fillStyle = '#2d3748';
+                        ctx.fillRect(barX, barY, barWidth, barHeight);
+                        ctx.fillStyle = hpFrac > 0.5 ? '#48bb78' : (hpFrac > 0.25 ? '#ed8936' : '#e53e3e');
+                        ctx.fillRect(barX, barY, barWidth * hpFrac, barHeight);
+
+                        // Tiny man with tool (interpolate if walking)
+                        const walker = walkers.find(w => w.unit === unit);
+                        if (walker && walker.curX !== undefined) {
+                            const tempPos = { x: walker.curX, y: walker.curY };
+                            drawTinyManInterpolated(ctx, tempPos, color, unit);
+                        } else {
+                            drawTinyMan(ctx, unit, color);
+                        }
+                    }
+                });
+            }
+            
+            // Draw projectiles (arrows/cannonballs)
+            if (projectiles.length > 0) {
+                projectiles.forEach(p => {
+                    if (p.curX === undefined || p.curY === undefined) return;
+                    if (p.kind === 'ball') {
+                        drawCannonball(p.curX * CELL_SIZE, p.curY * CELL_SIZE);
+                    } else {
+                        drawArrow(p.curX * CELL_SIZE, p.curY * CELL_SIZE, Math.atan2((p.ty - p.sy), (p.tx - p.sx)));
+                    }
+                });
+            }
+            // Draw slashes (knight swings)
+            if (slashes.length > 0) {
+                slashes.forEach(s => {
+                    drawSlash(s.x * CELL_SIZE, s.y * CELL_SIZE, (performance.now() - s.start) / s.duration);
+                });
+            }
+            // Draw explosions
+            if (explosions.length > 0) {
+                explosions.forEach(ex => {
+                    drawExplosion(ex.x * CELL_SIZE, ex.y * CELL_SIZE, (performance.now() - ex.start) / ex.duration);
+                });
+            }
+            // Draw structures
+            structures.forEach(s => {
+                if (s.type === 'stone') {
+                    ctx.fillStyle = '#718096';
+                } else if (s.type === 'wood') {
+                    ctx.fillStyle = '#b7791f';
+                } else {
+                    ctx.fillStyle = '#a0aec0';
+                }
+                ctx.fillRect(s.x * CELL_SIZE + 1, s.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+            });
+            // Draw monsters (interpolated if walking)
+            monsters.forEach(m => {
+                if (!m.alive) return;
+                const mw = monsterWalkers.find(w => w.monster === m);
+                const drawX = (mw && mw.curX !== undefined) ? mw.curX : m.x;
+                const drawY = (mw && mw.curY !== undefined) ? mw.curY : m.y;
+                // Monster body with subtle bobbing while moving
+                ctx.fillStyle = '#2c5282';
+                const bob = mw ? Math.sin(performance.now() * 0.01) * CELL_SIZE * 0.05 : 0;
+                const cx = drawX * CELL_SIZE + CELL_SIZE/2;
+                const cy = drawY * CELL_SIZE + CELL_SIZE/2 - bob;
+                const r = CELL_SIZE * 0.38;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+                // Monster icon: simple fanged mouth
+                ctx.strokeStyle = '#1a202c';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cx - r*0.5, cy + r*0.1);
+                ctx.lineTo(cx - r*0.2, cy + r*0.25);
+                ctx.lineTo(cx + r*0.2, cy + r*0.1);
+                ctx.lineTo(cx + r*0.5, cy + r*0.25);
+                ctx.stroke();
+                // Eyes
+                ctx.fillStyle = '#1a202c';
+                ctx.beginPath();
+                ctx.arc(cx - r*0.25, cy - r*0.2, r*0.1, 0, Math.PI*2);
+                ctx.arc(cx + r*0.25, cy - r*0.2, r*0.1, 0, Math.PI*2);
+                ctx.fill();
+            });
+            
+            ctx.restore();
+        }
+
+        function drawUnitIcon(ctx, unit) {
+            const x = unit.x * CELL_SIZE;
+            const y = unit.y * CELL_SIZE;
+            const cx = x + CELL_SIZE/2;
+            const cy = y + CELL_SIZE/2;
+            const r = CELL_SIZE * 0.28;
+            ctx.save();
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 2;
+            if (unit.type === 'archer') {
+                // Bow shape
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, -Math.PI/2, Math.PI/2);
+                ctx.stroke();
+                // Arrow
+                ctx.beginPath();
+                ctx.moveTo(cx - r, cy);
+                ctx.lineTo(cx + r, cy);
+                ctx.stroke();
+            } else if (unit.type === 'knight') {
+                // Sword
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - r);
+                ctx.lineTo(cx, cy + r);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx - r*0.3, cy + r*0.4);
+                ctx.lineTo(cx + r*0.3, cy + r*0.4);
+                ctx.stroke();
+            } else if (unit.type === 'miner') {
+                // Pickaxe
+                ctx.beginPath();
+                ctx.moveTo(cx - r*0.6, cy - r*0.2);
+                ctx.lineTo(cx + r*0.2, cy + r*0.6);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx - r*0.2, cy - r*0.6);
+                ctx.lineTo(cx + r*0.6, cy - r*0.2);
+                ctx.stroke();
+            } else if (unit.type === 'builder') {
+                // Brick
+                ctx.fillStyle = '#a0aec0';
+                ctx.fillRect(cx - r, cy - r*0.6, r*2, r*1.2);
+                ctx.strokeRect(cx - r, cy - r*0.6, r*2, r*1.2);
+            } else if (unit.type === 'cannon') {
+                // Cannon barrel
+                ctx.beginPath();
+                ctx.rect(cx - r, cy - r*0.4, r*2, r*0.8);
+                ctx.stroke();
+                // Wheel
+                ctx.beginPath();
+                ctx.arc(cx - r*0.9, cy + r*0.4, r*0.35, 0, Math.PI*2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawArrow(pixelX, pixelY, angle) {
+            const ax = pixelX + CELL_SIZE/2;
+            const ay = pixelY + CELL_SIZE/2;
+            const len = CELL_SIZE * 0.7;
+            ctx.save();
+            ctx.translate(ax, ay);
+            ctx.rotate(angle);
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 2;
+            // shaft
+            ctx.beginPath();
+            ctx.moveTo(-len/2, 0);
+            ctx.lineTo(len/2, 0);
+            ctx.stroke();
+            // head
+            ctx.beginPath();
+            ctx.moveTo(len/2, 0);
+            ctx.lineTo(len/2 - 6, 3);
+            ctx.lineTo(len/2 - 6, -3);
+            ctx.closePath();
+            ctx.fillStyle = '#e5e7eb';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawCannonball(pixelX, pixelY) {
+            const bx = pixelX + CELL_SIZE/2;
+            const by = pixelY + CELL_SIZE/2;
+            const r = CELL_SIZE * 0.25;
+            ctx.save();
+            // shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(bx + r*0.2, by + r*0.2, r*0.6, r*0.3, 0, 0, Math.PI*2);
+            ctx.fill();
+            // ball
+            ctx.fillStyle = '#374151';
+            ctx.beginPath();
+            ctx.arc(bx, by, r, 0, Math.PI*2);
+            ctx.fill();
+            // highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.beginPath();
+            ctx.arc(bx - r*0.3, by - r*0.3, r*0.4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        }
+        function startAnimationLoop() {
+            if (animationFrameId) return;
+            const step = (now) => {
+                const remaining = [];
+                for (let i = 0; i < projectiles.length; i++) {
+                    const p = projectiles[i];
+                    const t = Math.min(1, (now - p.start) / p.duration);
+                    const curX = p.sx + (p.tx - p.sx) * t;
+                    const curY = p.sy + (p.ty - p.sy) * t;
+                    p.curX = curX;
+                    p.curY = curY;
+                    if (t >= 1) {
+                        if (typeof p.onComplete === 'function') {
+                            try { p.onComplete(); } catch (e) { /* noop */ }
+                        }
+                    } else {
+                        remaining.push(p);
+                    }
+                }
+                projectiles = remaining;
+                // Update explosions
+                const remainingExplosions = [];
+                for (let i = 0; i < explosions.length; i++) {
+                    const ex = explosions[i];
+                    const t2 = Math.min(1, (now - ex.start) / ex.duration);
+                    if (t2 >= 1) {
+                        if (typeof ex.onComplete === 'function') {
+                            try { ex.onComplete(); } catch (e) { /* noop */ }
+                        }
+                    } else {
+                        remainingExplosions.push(ex);
+                    }
+                }
+                explosions = remainingExplosions;
+                // Update slashes
+                const remainingSlashes = [];
+                for (let i = 0; i < slashes.length; i++) {
+                    const s = slashes[i];
+                    const t = Math.min(1, (now - s.start) / s.duration);
+                    if (t >= 1) {
+                        if (typeof s.onComplete === 'function') {
+                            try { s.onComplete(); } catch (e) { /* noop */ }
+                        }
+                    } else {
+                        remainingSlashes.push(s);
+                    }
+                }
+                slashes = remainingSlashes;
+                // Update walkers (unit movement)
+                const remainingWalkers = [];
+                for (let i = 0; i < walkers.length; i++) {
+                    const w = walkers[i];
+                    const t = Math.min(1, (now - w.start) / w.duration);
+                    w.curX = w.fromX + (w.toX - w.fromX) * t;
+                    w.curY = w.fromY + (w.toY - w.fromY) * t;
+                    if (t >= 1) {
+                        if (typeof w.onComplete === 'function') {
+                            try { w.onComplete(); } catch (e) { /* noop */ }
+                        }
+                    } else {
+                        remainingWalkers.push(w);
+                    }
+                }
+                walkers = remainingWalkers;
+
+                // Update monster walkers
+                const remainingMonsterWalkers = [];
+                for (let i = 0; i < monsterWalkers.length; i++) {
+                    const w = monsterWalkers[i];
+                    const t = Math.min(1, (now - w.start) / w.duration);
+                    w.curX = w.fromX + (w.toX - w.fromX) * t;
+                    w.curY = w.fromY + (w.toY - w.fromY) * t;
+                    if (t >= 1) {
+                        if (typeof w.onComplete === 'function') {
+                            try { w.onComplete(); } catch (e) { /* noop */ }
+                        }
+                    } else {
+                        remainingMonsterWalkers.push(w);
+                    }
+                }
+                monsterWalkers = remainingMonsterWalkers;
+                drawGrid();
+                drawMinimap();
+                if (projectiles.length > 0 || slashes.length > 0 || explosions.length > 0 || walkers.length > 0 || monsterWalkers.length > 0) {
+                    animationFrameId = requestAnimationFrame(step);
+                } else {
+                    animationFrameId = null;
+                }
+            };
+            animationFrameId = requestAnimationFrame(step);
+        }
+
+        function drawExplosion(pixelX, pixelY, t) {
+            const cx = pixelX + CELL_SIZE/2;
+            const cy = pixelY + CELL_SIZE/2;
+            const maxR = CELL_SIZE * 1.2;
+            const r = maxR * t;
+            ctx.save();
+            const gradient = ctx.createRadialGradient(cx, cy, Math.max(1, r*0.1), cx, cy, Math.max(1, r));
+            gradient.addColorStop(0, 'rgba(255, 255, 200, 0.95)');
+            gradient.addColorStop(0.4, 'rgba(255, 140, 0, 0.7)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawSlash(pixelX, pixelY, t) {
+            // t in [0,1]
+            const ax = pixelX + CELL_SIZE/2;
+            const ay = pixelY + CELL_SIZE/2;
+            const len = CELL_SIZE * 1.2;
+            const angle = -Math.PI/4 + t * (Math.PI/2); // sweep
+            ctx.save();
+            ctx.translate(ax, ay);
+            ctx.rotate(angle);
+            // motion blur
+            const grd = ctx.createLinearGradient(-len/2, 0, len/2, 0);
+            grd.addColorStop(0, 'rgba(255,255,255,0)');
+            grd.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+            grd.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.strokeStyle = grd;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(-len/2, 0);
+            ctx.lineTo(len/2, 0);
+            ctx.stroke();
+            ctx.restore();
+        }
+        function drawTile3D(gx, gy) {
+            const x = gx * CELL_SIZE;
+            const y = gy * CELL_SIZE;
+            // Top
+            ctx.fillStyle = (gx + gy) % 2 === 0 ? '#334155' : '#1f2937';
+            ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+            // Right wall
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+            ctx.beginPath();
+            ctx.moveTo(x + CELL_SIZE, y);
+            ctx.lineTo(x + CELL_SIZE + 4, y + 4);
+            ctx.lineTo(x + CELL_SIZE + 4, y + CELL_SIZE + 4);
+            ctx.lineTo(x + CELL_SIZE, y + CELL_SIZE);
+            ctx.closePath();
+            ctx.fill();
+            // Bottom wall
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.7)';
+            ctx.beginPath();
+            ctx.moveTo(x, y + CELL_SIZE);
+            ctx.lineTo(x + 4, y + CELL_SIZE + 4);
+            ctx.lineTo(x + CELL_SIZE + 4, y + CELL_SIZE + 4);
+            ctx.lineTo(x + CELL_SIZE, y + CELL_SIZE);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawTinyMan(ctx, unit, color) {
+            const cx = unit.x * CELL_SIZE + CELL_SIZE/2;
+            const cy = unit.y * CELL_SIZE + CELL_SIZE/2;
+            ctx.save();
+            // Shadow (ground contact)
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy + CELL_SIZE*0.24, CELL_SIZE*0.30, CELL_SIZE*0.14, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // Depth offset for faux 3D extrusion
+            const d = CELL_SIZE * 0.10;
+            const bodyColor = color === 'blue' ? '#60a5fa' : '#f87171';
+            const bodyDark = color === 'blue' ? '#3b82f6' : '#ef4444';
+
+            // Torso 3D box (draw side faces first) — larger proportions
+            const torsoW = CELL_SIZE*0.36, torsoH = CELL_SIZE*0.44;
+            const torsoX = cx - torsoW/2, torsoY = cy - CELL_SIZE*0.06;
+            // Right face
+            ctx.fillStyle = bodyDark;
+            ctx.beginPath();
+            ctx.moveTo(torsoX + torsoW, torsoY);
+            ctx.lineTo(torsoX + torsoW + d, torsoY + d);
+            ctx.lineTo(torsoX + torsoW + d, torsoY + torsoH + d);
+            ctx.lineTo(torsoX + torsoW, torsoY + torsoH);
+            ctx.closePath();
+            ctx.fill();
+            // Bottom face
+            ctx.fillStyle = '#1f2937';
+            ctx.beginPath();
+            ctx.moveTo(torsoX, torsoY + torsoH);
+            ctx.lineTo(torsoX + d, torsoY + torsoH + d);
+            ctx.lineTo(torsoX + torsoW + d, torsoY + torsoH + d);
+            ctx.lineTo(torsoX + torsoW, torsoY + torsoH);
+            ctx.closePath();
+            ctx.fill();
+            // Front face
+            ctx.fillStyle = bodyColor;
+            ctx.fillRect(torsoX, torsoY, torsoW, torsoH);
+            // Simple belt detail
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(torsoX, torsoY + torsoH*0.55, torsoW, Math.max(2, CELL_SIZE*0.04));
+
+            // Head (sphere with highlight) — larger
+            const headR = CELL_SIZE*0.22;
+            const headCx = cx, headCy = cy - CELL_SIZE*0.22;
+            // Back/head shadow
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(headCx + d*0.5, headCy + d*0.5, headR, 0, Math.PI*2);
+            ctx.fill();
+            // Head front
+            ctx.fillStyle = '#e5decf';
+            ctx.beginPath();
+            ctx.arc(headCx, headCy, headR, 0, Math.PI*2);
+            ctx.fill();
+            // Highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.beginPath();
+            ctx.arc(headCx - headR*0.4, headCy - headR*0.4, headR*0.35, 0, Math.PI*2);
+            ctx.fill();
+            // Eyes
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.arc(headCx - headR*0.35, headCy, headR*0.08, 0, Math.PI*2);
+            ctx.arc(headCx + headR*0.35, headCy, headR*0.08, 0, Math.PI*2);
+            ctx.fill();
+
+            // Arms (simple extruded rectangles)
+            ctx.fillStyle = bodyColor;
+            ctx.fillRect(cx - torsoW/2 - CELL_SIZE*0.12, cy + CELL_SIZE*0.02, CELL_SIZE*0.12, CELL_SIZE*0.10);
+            ctx.fillRect(cx + torsoW/2, cy + CELL_SIZE*0.02, CELL_SIZE*0.12, CELL_SIZE*0.10);
+            // Legs (extruded)
+            ctx.fillRect(cx - CELL_SIZE*0.12, cy + CELL_SIZE*0.34, CELL_SIZE*0.10, CELL_SIZE*0.22);
+            ctx.fillRect(cx + CELL_SIZE*0.02, cy + CELL_SIZE*0.34, CELL_SIZE*0.10, CELL_SIZE*0.22);
+
+            // Tool by type (with slight perspective)
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 2.5;
+            if (unit.type === 'archer') {
+                // Bow (curved) in right hand
+                ctx.beginPath();
+                ctx.arc(cx + CELL_SIZE*0.30, cy, CELL_SIZE*0.22, -Math.PI/2, Math.PI/2);
+                ctx.stroke();
+                // Arrow string
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.30, cy - CELL_SIZE*0.22);
+                ctx.lineTo(cx + CELL_SIZE*0.30, cy + CELL_SIZE*0.22);
+                ctx.stroke();
+            } else if (unit.type === 'knight') {
+                // Sword with guard
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.30, cy + CELL_SIZE*0.08);
+                ctx.lineTo(cx + CELL_SIZE*0.30, cy - CELL_SIZE*0.36);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.24, cy - CELL_SIZE*0.06);
+                ctx.lineTo(cx + CELL_SIZE*0.36, cy - CELL_SIZE*0.06);
+                ctx.stroke();
+            } else if (unit.type === 'miner') {
+                // Pickaxe head
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.26, cy - CELL_SIZE*0.10);
+                ctx.lineTo(cx + CELL_SIZE*0.44, cy - CELL_SIZE*0.20);
+                ctx.stroke();
+                // Handle
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.32, cy - CELL_SIZE*0.02);
+                ctx.lineTo(cx + CELL_SIZE*0.40, cy - CELL_SIZE*0.28);
+                ctx.stroke();
+            } else if (unit.type === 'builder') {
+                // Hammer
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.28, cy - CELL_SIZE*0.02);
+                ctx.lineTo(cx + CELL_SIZE*0.44, cy - CELL_SIZE*0.22);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + CELL_SIZE*0.44, cy - CELL_SIZE*0.24);
+                ctx.lineTo(cx + CELL_SIZE*0.52, cy - CELL_SIZE*0.18);
+                ctx.stroke();
+            } else if (unit.type === 'cannon') {
+                // Cannon cart with wheels and barrel, oriented by facing
+                const facing = unit.facing || (color === 'blue' ? 1 : -1);
+                // Wheels
+                ctx.fillStyle = '#374151';
+                ctx.beginPath();
+                ctx.arc(cx + CELL_SIZE*0.06, cy + CELL_SIZE*0.16, CELL_SIZE*0.11, 0, Math.PI*2);
+                ctx.arc(cx + CELL_SIZE*0.26, cy + CELL_SIZE*0.16, CELL_SIZE*0.11, 0, Math.PI*2);
+                ctx.fill();
+                // Carriage
+                ctx.fillStyle = '#4b5563';
+                ctx.fillRect(cx - CELL_SIZE*0.02, cy + CELL_SIZE*0.02, CELL_SIZE*0.34, CELL_SIZE*0.12);
+                // Barrel
+                const barrelLen = CELL_SIZE*0.5;
+                const barrelRad = CELL_SIZE*0.09;
+                const bx = cx + CELL_SIZE*0.12;
+                const by = cy - CELL_SIZE*0.02;
+                ctx.save();
+                ctx.translate(bx, by);
+                ctx.rotate(facing > 0 ? 0 : Math.PI);
+                ctx.fillStyle = '#6b7280';
+                ctx.beginPath();
+                ctx.rect(0, -barrelRad, barrelLen, barrelRad*2);
+                ctx.fill();
+                // Muzzle
+                ctx.beginPath();
+                ctx.arc(barrelLen, 0, barrelRad*0.9, 0, Math.PI*2);
+                ctx.fillStyle = '#9ca3af';
+                ctx.fill();
+                // Highlight
+                ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                ctx.fillRect(barrelLen*0.2, -barrelRad*0.6, barrelLen*0.5, barrelRad*0.3);
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawTinyManInterpolated(ctx, pos, color, unit) {
+            const cx = pos.x * CELL_SIZE + CELL_SIZE/2;
+            const cy = pos.y * CELL_SIZE + CELL_SIZE/2;
+            // Simple bobbing to simulate walking
+            const t = performance.now() * 0.01;
+            const bob = Math.sin(t) * CELL_SIZE * 0.04;
+            const saved = { x: unit.x, y: unit.y };
+            const tempUnit = { ...unit, x: pos.x, y: pos.y };
+            ctx.save();
+            ctx.translate(0, -bob);
+            drawTinyMan(ctx, tempUnit, color);
+            ctx.restore();
+        }
+        
+        function drawMinimap() {
+            // Clear minimap
+            minimapCtx.fillStyle = '#1a202c';
+            minimapCtx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+            
+            // Draw ores on minimap
+            ores.forEach(ore => {
+                if (ore.type === 'diamond') {
+                    minimapCtx.fillStyle = '#38b2ac';
+                    minimapCtx.fillRect(ore.x, ore.y, 2, 2);
+                } else if (ore.type === 'green') {
+                    minimapCtx.fillStyle = '#48bb78';
+                    minimapCtx.fillRect(ore.x, ore.y, 2, 2);
+                } else {
+                    minimapCtx.fillStyle = '#d69e2e';
+                    minimapCtx.fillRect(ore.x, ore.y, 1, 1);
+                }
+            });
+
+            // Draw units on minimap
+            for (let color in units) {
+                minimapCtx.fillStyle = color === 'blue' ? '#667eea' : '#f56565';
+                units[color].forEach(unit => {
+                    if (unit.alive) {
+                        minimapCtx.fillRect(unit.x, unit.y, 2, 2);
+                    }
+                });
+            }
+            // Draw structures on minimap
+            structures.forEach(s => {
+                if (s.type === 'stone') minimapCtx.fillStyle = '#718096';
+                else if (s.type === 'wood') minimapCtx.fillStyle = '#b7791f';
+                else minimapCtx.fillStyle = '#a0aec0';
+                minimapCtx.fillRect(s.x, s.y, 1, 1);
+            });
+            // Draw monsters on minimap
+            minimapCtx.fillStyle = '#2c5282';
+            monsters.forEach(m => {
+                if (m.alive) minimapCtx.fillRect(m.x, m.y, 2, 2);
+            });
+            
+            // Draw viewport rectangle
+            minimapCtx.strokeStyle = '#ffd700';
+            minimapCtx.lineWidth = 1;
+            minimapCtx.strokeRect(
+                cameraX / CELL_SIZE,
+                cameraY / CELL_SIZE,
+                VIEWPORT_WIDTH / CELL_SIZE,
+                VIEWPORT_HEIGHT / CELL_SIZE
+            );
+        }
+        
+        function getValidMoves(unit) {
+            const moves = [];
+            const bonusMove = (unit.type === 'cannon' && unit.upgradeMove) ? unit.upgradeMove : 0;
+            const maxStep = (MOVE_RANGE[unit.type] || 1) + bonusMove;
+            for (let dx = -maxStep; dx <= maxStep; dx++) {
+                for (let dy = -maxStep; dy <= maxStep; dy++) {
+                    if (dx === 0 && dy === 0) continue;
+                    const dist = Math.max(Math.abs(dx), Math.abs(dy));
+                    if (dist < 1 || dist > maxStep) continue;
+                    const newX = unit.x + dx;
+                    const newY = unit.y + dy;
+                    if (newX >= 0 && newX < GRID_SIZE && newY >= 0 && newY < GRID_SIZE) {
+                        // Blocks: stone and wood block movement; doors allow
+                        const blocked = structures.some(s => s.x === newX && s.y === newY && s.type !== 'door');
+                        if (!blocked && !isOccupied(newX, newY)) {
+                            moves.push({ x: newX, y: newY });
+                        }
+                    }
+                }
+            }
+            return moves;
+        }
+        
+        function getValidAttacks(unit) {
+            const targets = [];
+            if (unit.type === 'archer') {
+                const directions = [
+                    {dx: -1, dy: 0}, {dx: 1, dy: 0},
+                    {dx: 0, dy: -1}, {dx: 0, dy: 1}
+                ];
+                directions.forEach(dir => {
+                    const extra = unit.upgradeRange ? unit.upgradeRange : 0;
+                    for (let i = 1; i <= 5 + extra; i++) {
+                        const tx = unit.x + dir.dx * i;
+                        const ty = unit.y + dir.dy * i;
+                        if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
+                            // Projectiles stopped by stone/wood walls; door allows
+                            const wallBetween = structures.some(s => s.type !== 'door' && s.x === tx && s.y === ty);
+                            if (wallBetween) break;
+                            targets.push({ x: tx, y: ty });
+                        }
+                    }
+                });
+            } else if (unit.type === 'cannon') {
+                // Cannon shoots 10 squares straight ahead; define facing from last move or default toward enemy
+                const facing = unit.facing || (currentPlayer === 'blue' ? 1 : -1);
+                const extra = unit.upgradeRange ? unit.upgradeRange : 0;
+                for (let i = 1; i <= 10 + extra; i++) {
+                    const tx = unit.x + facing * i;
+                    const ty = unit.y;
+                    if (tx >= 0 && tx < GRID_SIZE) {
+                        const wallBetween = structures.some(s => s.type !== 'door' && s.x === tx && s.y === ty);
+                        if (wallBetween) break;
+                        targets.push({ x: tx, y: ty });
+                    }
+                }
+            } else if (unit.type === 'knight') {
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const tx = unit.x + dx;
+                        const ty = unit.y + dy;
+                        if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
+                            targets.push({ x: tx, y: ty });
+                        }
+                    }
+                }
+            }
+            return targets;
+        }
+        
+        function handleCanvasClick(e) {
+            if (isDragging) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left + cameraX;
+            const y = e.clientY - rect.top + cameraY;
+            
+            const gridX = Math.floor(x / CELL_SIZE);
+            const gridY = Math.floor(y / CELL_SIZE);
+            
+            // Check if clicking on a unit
+            let clickedUnit = null;
+            units[currentPlayer].forEach(u => {
+                if (u.alive && u.x === gridX && u.y === gridY) {
+                    clickedUnit = u;
+                }
+            });
+            // Builder build: click one tile within 10 squares (Chebyshev) to place structure (1 per click)
+            if (!clickedUnit && selectedUnit && selectedUnit.type === 'builder' && mode === 'build') {
+                const dist = Math.max(Math.abs(selectedUnit.x - gridX), Math.abs(selectedUnit.y - gridY));
+                const occupied = isOccupied(gridX, gridY) || structures.some(s => s.x === gridX && s.y === gridY);
+                if (dist > 0 && dist <= 10 && !occupied) {
+                    const cost = BUILD_COST[buildType];
+                    if (gold[currentPlayer] >= cost) {
+                        structures.push({ type: buildType, x: gridX, y: gridY });
+                        gold[currentPlayer] -= cost;
+                        selectedUnit = null;
+                        attackTargets = [];
+                        endTurn();
+                        drawGrid();
+                        drawMinimap();
+                        updateStats();
+                        return;
+                    }
+                }
+            }
+            
+            if (clickedUnit) {
+                selectedUnit = clickedUnit;
+                if (mode === 'move') {
+                    moveTargets = getValidMoves(selectedUnit);
+                    attackTargets = [];
+                } else {
+                    attackTargets = getValidAttacks(selectedUnit);
+                    moveTargets = [];
+                }
+                updateUpgradeButton();
+            } else if (selectedUnit) {
+                // Execute move or shoot
+                if (mode === 'move') {
+                    const validMove = moveTargets.find(t => t.x === gridX && t.y === gridY);
+                    if (validMove) {
+                        // Animate walking to target over 300ms
+                        const unit = selectedUnit;
+                        const fromX = unit.x, fromY = unit.y;
+                        const toX = gridX, toY = gridY;
+                        // Prepare post-move effects for miners and facing for cannon
+                        const afterMove = () => {
+                            // Update logical position at end of animation
+                            unit.x = toX;
+                            unit.y = toY;
+                            if (unit.type === 'cannon') {
+                                const dxMove = toX - fromX;
+                                const dyMove = toY - fromY;
+                                if (Math.abs(dxMove) >= Math.abs(dyMove) && dxMove !== 0) unit.facing = Math.sign(dxMove);
+                            }
+                            if (unit.type === 'miner') {
+                                const oreIndex = ores.findIndex(o => o.x === toX && o.y === toY && (o.type === 'gold' || o.type === 'green'));
+                                if (oreIndex !== -1) {
+                                    const ore = ores[oreIndex];
+                                    ores.splice(oreIndex, 1);
+                                    gold[currentPlayer] += (ore.type === 'green') ? 50 : 5;
+                                }
+                                if (toX === CENTER_X && toY === CENTER_Y) {
+                                    diamondProgress[currentPlayer] = Math.min(DIAMOND_REQUIRED, diamondProgress[currentPlayer] + 1);
+                                    if (diamondProgress[currentPlayer] >= DIAMOND_REQUIRED) {
+                                        gold[currentPlayer] += DIAMOND_VALUE;
+                                        ores = ores.filter(o => !(o.type === 'diamond' && o.x === CENTER_X && o.y === CENTER_Y));
+                                    }
+                                }
+                            }
+                            drawGrid();
+                            drawMinimap();
+                            updateStats();
+                            endTurn();
+                        };
+                        walkers.push({ unit, color: currentPlayer, fromX, fromY, toX, toY, start: performance.now(), duration: 300, onComplete: afterMove });
+                        // Clear selection and start loop
+                        selectedUnit = null;
+                        moveTargets = [];
+                        startAnimationLoop();
+                    }
+                } else {
+                    const validAttack = attackTargets.find(t => t.x === gridX && t.y === gridY);
+                    if (validAttack) {
+                        const enemyColor = currentPlayer === 'blue' ? 'red' : 'blue';
+                        const enemy = units[enemyColor].find(e => e.alive && e.x === gridX && e.y === gridY);
+                        const monster = monsters.find(m => m.alive && m.x === gridX && m.y === gridY);
+                        if (selectedUnit.type !== 'miner') {
+                            if (selectedUnit.type === 'archer' && (enemy || monster)) {
+                                // Animate arrow for 1.0s before applying damage
+                                const sx = selectedUnit.x;
+                                const sy = selectedUnit.y;
+                                const tx = gridX;
+                                const ty = gridY;
+                                projectiles.push({
+                                    sx, sy, tx, ty,
+                                    start: performance.now(),
+                                    duration: 1000,
+                                    onComplete: () => {
+                                        if (enemy && enemy.alive) {
+                                            const dmg = UNIT_ATTACK.archer;
+                                            enemy.hp = (enemy.hp ?? (UNIT_MAX_HP[enemy.type] || 10)) - dmg;
+                                            if (enemy.hp <= 0) {
+                                                enemy.alive = false;
+                                                checkWinner();
+                                            }
+                                        } else if (monster && monster.alive) {
+                                            monster.alive = false;
+                                        }
+                                        drawGrid();
+                                        drawMinimap();
+                                        updateStats();
+                                        endTurn();
+                                    }
+                                });
+                                startAnimationLoop();
+                                selectedUnit = null;
+                                attackTargets = [];
+                                return;
+                            } else if (enemy) {
+                                if (selectedUnit.type === 'knight') {
+                                    // Play slash animation (0.4s), then apply damage
+                                    slashes.push({ x: gridX, y: gridY, start: performance.now(), duration: 400, onComplete: () => {
+                                        const dmg = UNIT_ATTACK.knight;
+                                        enemy.hp = (enemy.hp ?? (UNIT_MAX_HP[enemy.type] || 10)) - dmg;
+                                        if (enemy.hp <= 0) {
+                                            enemy.alive = false;
+                                            checkWinner();
+                                        }
+                                        drawGrid();
+                                        drawMinimap();
+                                        updateStats();
+                                        endTurn();
+                                    }});
+                                    startAnimationLoop();
+                                    selectedUnit = null;
+                                    attackTargets = [];
+                                    return;
+                                } else if (selectedUnit.type === 'cannon') {
+                                    // Animate cannonball for 1.0s then apply damage
+                                    const sx = selectedUnit.x;
+                                    const sy = selectedUnit.y;
+                                    const tx = gridX;
+                                    const ty = gridY;
+                                    projectiles.push({
+                                        sx, sy, tx, ty, kind: 'ball',
+                                        start: performance.now(),
+                                        duration: 1000,
+                                        onComplete: () => {
+                                            const dmg = UNIT_ATTACK.cannon;
+                                            enemy.hp = (enemy.hp ?? (UNIT_MAX_HP[enemy.type] || 10)) - dmg;
+                                            if (enemy.hp <= 0) {
+                                                enemy.alive = false;
+                                                checkWinner();
+                                            }
+                                            // Explosion 1s at impact
+                                            explosions.push({ x: tx, y: ty, start: performance.now(), duration: 1000 });
+                                            drawGrid();
+                                            drawMinimap();
+                                            updateStats();
+                                            endTurn();
+                                        }
+                                    });
+                                    startAnimationLoop();
+                                    selectedUnit = null;
+                                    attackTargets = [];
+                                    return;
+                                } else {
+                                    // Damage by attacker type (immediate for other non-archers)
+                                    const dmg = UNIT_ATTACK[selectedUnit.type] || 0;
+                                    if (dmg > 0) {
+                                        enemy.hp = (enemy.hp ?? (UNIT_MAX_HP[enemy.type] || 10)) - dmg;
+                                        if (enemy.hp <= 0) {
+                                            enemy.alive = false;
+                                            checkWinner();
+                                        }
+                                    }
+                                }
+                            } else if (monster) {
+                                monster.alive = false;
+                            }
+                        }
+                        selectedUnit = null;
+                        attackTargets = [];
+                        // Auto end turn after action
+                        endTurn();
+                    }
+                }
+            }
+            
+            drawGrid();
+            drawMinimap();
+            updateStats();
+        }
+        
+        function handleMouseDown(e) {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            dragStartCameraX = cameraX;
+            dragStartCameraY = cameraY;
+            canvas.style.cursor = 'grabbing';
+        }
+        
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            
+            const dx = dragStartX - e.clientX;
+            const dy = dragStartY - e.clientY;
+            
+            cameraX = Math.max(0, Math.min(canvas.width - VIEWPORT_WIDTH, dragStartCameraX + dx));
+            cameraY = Math.max(0, Math.min(canvas.height - VIEWPORT_HEIGHT, dragStartCameraY + dy));
+            
+            drawGrid();
+            drawMinimap();
+        }
+        
+        function handleMouseUp() {
+            isDragging = false;
+            canvas.style.cursor = 'crosshair';
+        }
+        
+        function toggleMode() {
+            // Cycle through MOVE -> ATTACK -> BUILD -> MOVE
+            if (mode === 'move') mode = 'attack';
+            else if (mode === 'attack') mode = 'build';
+            else mode = 'move';
+            const modeBtn = document.getElementById('modeBtn');
+            modeBtn.textContent = `Mode: ${mode.toUpperCase()}`;
+            modeBtn.className = mode === 'attack' ? 'mode-btn shoot-mode' : 'mode-btn';
+            
+            if (selectedUnit) {
+                if (mode === 'move') {
+                    moveTargets = getValidMoves(selectedUnit);
+                    attackTargets = [];
+                } else if (mode === 'attack') {
+                    attackTargets = getValidAttacks(selectedUnit);
+                    moveTargets = [];
+                } else {
+                    // build mode has no precomputed highlights
+                    attackTargets = [];
+                    moveTargets = [];
+                }
+                drawGrid();
+            }
+            updateUpgradeButton();
+        }
+        
+        function endTurn() {
+            currentPlayer = currentPlayer === 'blue' ? 'red' : 'blue';
+            selectedUnit = null;
+            moveTargets = [];
+            attackTargets = [];
+            
+            const turnIndicator = document.getElementById('turnIndicator');
+            turnIndicator.textContent = `${currentPlayer === 'blue' ? 'Blue' : 'Red'} Player's Turn`;
+            turnIndicator.className = `turn-indicator ${currentPlayer}`;
+            // Spawn a new ore each turn
+            spawnRandomOre();
+            // Move monsters after each player's turn
+            moveMonsters();
+            drawGrid();
+            drawMinimap();
+            updateStats();
+            updateUpgradeButton();
+            // trading removed
+        }
+        
+        function updateStats() {
+            const countTypes = (side) => {
+                const alive = units[side].filter(u => u.alive);
+                return {
+                    a: alive.filter(u => u.type === 'archer').length,
+                    k: alive.filter(u => u.type === 'knight').length,
+                    m: alive.filter(u => u.type === 'miner').length,
+                    b: alive.filter(u => u.type === 'builder').length,
+                    c: alive.filter(u => u.type === 'cannon').length,
+                };
+            };
+            const b = countTypes('blue');
+            const r = countTypes('red');
+            document.getElementById('blueStats').textContent = `Gold: ${gold.blue} | A: ${b.a} K: ${b.k} M: ${b.m} B: ${b.b} C: ${b.c}`;
+            document.getElementById('redStats').textContent = `Gold: ${gold.red} | A: ${r.a} K: ${r.k} M: ${r.m} B: ${r.b} C: ${r.c}`;
+        }
+        
+        function checkWinner() {
+            const blueAlive = units.blue.filter(u => u.alive).length;
+            const redAlive = units.red.filter(u => u.alive).length;
+            if (blueAlive === 0) {
+                showWinner('Red');
+            } else if (redAlive === 0) {
+                showWinner('Blue');
+            }
+        }
+
+        function moveMonsters() {
+            // Flatten list of all alive units
+            const allUnits = [...units.blue, ...units.red].filter(u => u.alive);
+            // Reserve targets so monsters spread out when chasing
+            const reserved = new Set();
+            const posKey = (x, y) => `${x},${y}`;
+            // Snapshot of current monster positions for spacing calculation
+            const currentMonsterPositions = monsters.map(m => ({ x: m.x, y: m.y, alive: m.alive }));
+
+            const newWalkers = [];
+
+            monsters.forEach((m, mi) => {
+                if (!m.alive) return;
+                if (allUnits.length === 0) return;
+                // Intruders: units within 10 squares of diamond center
+                const intruders = allUnits.filter(u => Math.max(Math.abs(u.x - CENTER_X), Math.abs(u.y - CENTER_Y)) <= 10);
+                if (intruders.length > 0) {
+                    // Chase the closest intruder to this monster
+                    let target = null;
+                    let best = Infinity;
+                    for (let i = 0; i < intruders.length; i++) {
+                        const u = intruders[i];
+                        const d = Math.max(Math.abs(u.x - m.x), Math.abs(u.y - m.y));
+                        if (d < best) {
+                            best = d;
+                            target = u;
+                        }
+                    }
+                    if (target) {
+                        const dxTo = target.x - m.x;
+                        const dyTo = target.y - m.y;
+                        const stepX = Math.sign(dxTo) * Math.min(MONSTER_MOVE_RANGE, Math.abs(dxTo));
+                        const stepY = Math.sign(dyTo) * Math.min(MONSTER_MOVE_RANGE, Math.abs(dyTo));
+                        const candidates = [];
+                        // Primary straight move
+                        candidates.push({ dx: stepX, dy: stepY });
+                        // Sidesteps to encourage spread
+                        if (stepX !== 0) candidates.push({ dx: stepX, dy: 0 });
+                        if (stepY !== 0) candidates.push({ dx: 0, dy: stepY });
+                        // Evaluate candidates: must reduce distance; prefer those farther from other monsters and not reserved
+                        const curDist = Math.max(Math.abs(dxTo), Math.abs(dyTo));
+                        let bestCand = null;
+                        let bestScore = -Infinity;
+                        for (let ci = 0; ci < candidates.length; ci++) {
+                            const c = candidates[ci];
+                            let nx = Math.max(0, Math.min(GRID_SIZE - 1, m.x + c.dx));
+                            let ny = Math.max(0, Math.min(GRID_SIZE - 1, m.y + c.dy));
+                            const newDist = Math.max(Math.abs(target.x - nx), Math.abs(target.y - ny));
+                            if (newDist >= curDist) continue; // must get closer
+                            // Score based on distance to other monsters to spread out
+                            let minSep = Infinity;
+                            for (let mj = 0; mj < currentMonsterPositions.length; mj++) {
+                                if (mj === mi) continue;
+                                const om = currentMonsterPositions[mj];
+                                if (!om.alive) continue;
+                                const sep = Math.max(Math.abs(om.x - nx), Math.abs(om.y - ny));
+                                if (sep < minSep) minSep = sep;
+                            }
+                            // Penalize reserved collisions
+                            const reservedPenalty = reserved.has(posKey(nx, ny)) ? 1000 : 0;
+                            const score = minSep - reservedPenalty;
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestCand = { x: nx, y: ny };
+                            }
+                        }
+                        if (bestCand) {
+                            const fromX = m.x, fromY = m.y;
+                            const toX = bestCand.x, toY = bestCand.y;
+                            reserved.add(posKey(toX, toY));
+                            newWalkers.push({
+                                monster: m,
+                                fromX, fromY, toX, toY,
+                                start: performance.now(),
+                                duration: 300,
+                                onComplete: () => {
+                                    m.x = toX; m.y = toY;
+                                    // If landed on any intruder (within diamond radius), damage it 5 HP
+                                    const victim = intruders.find(u => u.alive && u.x === toX && u.y === toY);
+                                    if (victim) {
+                                        const maxHp = UNIT_MAX_HP[victim.type] || 10;
+                                        victim.hp = (victim.hp ?? maxHp) - 5;
+                                        if (victim.hp <= 0) victim.alive = false;
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    return;
+                }
+                // No intruders: move toward diamond center to guard it
+                const dxTo = CENTER_X - m.x;
+                const dyTo = CENTER_Y - m.y;
+                const stepX = Math.sign(dxTo) * Math.min(MONSTER_MOVE_RANGE, Math.abs(dxTo));
+                const stepY = Math.sign(dyTo) * Math.min(MONSTER_MOVE_RANGE, Math.abs(dyTo));
+                const gx = Math.max(0, Math.min(GRID_SIZE - 1, m.x + stepX));
+                const gy = Math.max(0, Math.min(GRID_SIZE - 1, m.y + stepY));
+                // Avoid piling onto same guard tile
+                if (!reserved.has(posKey(gx, gy))) {
+                    const fromX = m.x, fromY = m.y;
+                    const toX = gx, toY = gy;
+                    reserved.add(posKey(toX, toY));
+                    newWalkers.push({
+                        monster: m,
+                        fromX, fromY, toX, toY,
+                        start: performance.now(),
+                        duration: 300,
+                        onComplete: () => { m.x = toX; m.y = toY; }
+                    });
+                }
+            });
+
+            // Queue animations
+            if (newWalkers.length > 0) {
+                monsterWalkers.push(...newWalkers);
+                startAnimationLoop();
+            }
+            checkWinner();
+        }
+        
+        function showWinner(winner) {
+            document.getElementById('winnerText').textContent = `${winner} Player Wins!`;
+            document.getElementById('winnerModal').style.display = 'flex';
+        }
+        
+        function resetGame() {
+            units = {
+                blue: createSideUnits(2, 3),
+                red: createSideUnits(GRID_SIZE - 3, GRID_SIZE - 4)
+            };
+            gold = { blue: 0, red: 0 };
+            spawnInitialOres(30);
+            placeDiamondOre();
+            spawnMonsters();
+            currentPlayer = 'blue';
+            mode = 'move';
+            selectedUnit = null;
+            moveTargets = [];
+            attackTargets = [];
+            
+            document.getElementById('turnIndicator').textContent = 'Blue Player\'s Turn';
+            document.getElementById('turnIndicator').className = 'turn-indicator blue';
+            document.getElementById('modeBtn').textContent = 'Mode: MOVE';
+            document.getElementById('modeBtn').className = 'mode-btn';
+            document.getElementById('winnerModal').style.display = 'none';
+            
+            cameraX = (GRID_SIZE * CELL_SIZE - VIEWPORT_WIDTH) / 2;
+            cameraY = (GRID_SIZE * CELL_SIZE - VIEWPORT_HEIGHT) / 2;
+            
+            drawGrid();
+            drawMinimap();
+            updateStats();
+        }
+
+        function buyUnit(type) {
+            const cost = COSTS[type];
+            // cannon always purchasable (merchant removed)
+            if (gold[currentPlayer] < cost) return;
+            // Find spawn location near player's side
+            const spawnXs = currentPlayer === 'blue' ? [1, 2, 3, 4] : [GRID_SIZE - 2, GRID_SIZE - 3, GRID_SIZE - 4, GRID_SIZE - 5];
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let xi = 0; xi < spawnXs.length; xi++) {
+                    const x = spawnXs[xi];
+                    const blocked = structures.some(s => s.x === x && s.y === y && s.type !== 'door');
+                    if (!blocked && !isOccupied(x, y)) {
+                        units[currentPlayer].push({ type, x, y, alive: true, hp: UNIT_MAX_HP[type] || 10 });
+                        gold[currentPlayer] -= cost;
+                        updateStats();
+                        drawGrid();
+                        drawMinimap();
+                        return;
+                    }
+                }
+            }
+        }
+
+        function updateUpgradeButton() {
+            const btn = document.getElementById('upgradeBtn');
+            if (!btn) return;
+            const unit = selectedUnit;
+            const canUpgrade = !!unit && gold[currentPlayer] >= 10 && (unit.type === 'archer' || unit.type === 'knight' || unit.type === 'cannon');
+            btn.disabled = !canUpgrade;
+        }
+
+        // trading removed
+
+        function upgradeSelectedUnit() {
+            if (!selectedUnit) return;
+            if (gold[currentPlayer] < 10) return;
+            if (selectedUnit.type === 'archer') {
+                selectedUnit.upgradeRange = (selectedUnit.upgradeRange || 0) + 1;
+            } else if (selectedUnit.type === 'knight') {
+                UNIT_ATTACK.knight += 1;
+            } else if (selectedUnit.type === 'cannon') {
+                selectedUnit.upgradeMove = (selectedUnit.upgradeMove || 0) + 1;
+            } else {
+                return;
+            }
+            gold[currentPlayer] -= 10;
+            updateUpgradeButton();
+            drawGrid();
+            updateStats();
+        }
+
+        function setBuildType(t) {
+            buildType = t;
+        }
+        
+        // Event listeners
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
+        canvas.addEventListener('click', handleCanvasClick);
+        
+        // Initialize game
+        drawGrid();
+        drawMinimap();
+        updateStats();
+        // Merchant removed
+    </script>
+</body>
+</html>
